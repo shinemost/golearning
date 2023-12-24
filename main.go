@@ -2,28 +2,21 @@ package main
 
 import (
 	"fmt"
-
-	cmp "github.com/orcaman/concurrent-map/v2"
+	cmp "github.com/cornelk/hashmap"
 )
 
 func main() {
 
-	// 创建一个新的 map.
-	m := cmp.New[string]()
+	m := cmp.New[uint8, int]()
+	m.Set(1, 123)
+	value, ok := m.Get(1)
 
-	// 设置变量m一个键为“foo”值为“bar”键值对
-	m.Set("foo", "bar")
+	fmt.Printf("value is: %d,ok is %t\n", value, ok)
 
-	// 从m中获取指定键值.
-	bar, ok := m.Get("foo")
+	n := cmp.New[string, int]()
+	n.Set("amount", 456)
+	value, ok = n.Get("amount")
 
-	fmt.Printf("%s,%t\n", bar, ok)
-
-	// 删除键为“foo”的项
-	m.Remove("foo")
-
-	bar, ok = m.Get("foo")
-
-	fmt.Printf("%s,%t\n", bar, ok)
+	fmt.Printf("value is: %d,ok is %t\n", value, ok)
 
 }
