@@ -2,42 +2,28 @@ package main
 
 import (
 	"fmt"
-	"sync"
+
+	cmp "github.com/orcaman/concurrent-map/v2"
 )
 
 func main() {
-	var wg sync.WaitGroup
-	var m sync.Map
 
-	wg.Add(5)
+	// 创建一个新的 map.
+	m := cmp.New[string]()
 
-	for i := 0; i < 5; i++ {
-		i := i
-		go func() {
-			m.Store(i, fmt.Sprintf("test #%d", i))
-			wg.Done()
-		}()
-	}
-	wg.Wait()
-	fmt.Println("store done")
+	// 设置变量m一个键为“foo”值为“bar”键值对
+	m.Set("foo", "bar")
 
-	wg.Add(5)
+	// 从m中获取指定键值.
+	bar, ok := m.Get("foo")
 
-	for i := 0; i < 5; i++ {
-		i := i
-		go func() {
-			t, _ := m.Load(i)
-			fmt.Println("for loop: ", t)
-			wg.Done()
-		}()
-	}
-	wg.Wait()
+	fmt.Printf("%s,%t\n", bar, ok)
 
-	fmt.Println("load done")
+	// 删除键为“foo”的项
+	m.Remove("foo")
 
-	m.Range(func(k, v any) bool {
-		fmt.Println("range ():", v)
-		return true
-	})
+	bar, ok = m.Get("foo")
+
+	fmt.Printf("%s,%t\n", bar, ok)
 
 }
