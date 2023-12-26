@@ -2,31 +2,44 @@ package main
 
 import (
 	"fmt"
-	"net/http"
-	"runtime"
-	"sync"
-	"time"
+
+	"github.com/oxtoacart/bpool"
 )
 
+var bufpool *bpool.BufferPool
+
 func main() {
-	var p sync.Pool
 
-	for i := 0; i < 10; i++ {
-		p.Put(&http.Client{
-			Timeout: 5 * time.Second,
-		})
-	}
-	runtime.GC()
-	runtime.GC()
+	//数据库连接池和http client连接池底层都是用了Sync.Pool技术，有时间可以看看源码学习一下
+	//sql.DB{}
+	//http.Transport{}
 
-	c := p.Get().(*http.Client)
-	req, err := c.Get("https://www.baidu.com")
-	if err != nil {
-		fmt.Println("failed to get baidu")
-	}
+	//三方包
+	//bytebufferpool 底层是sync.Pool https://github.com/valyala/bytebufferpool/
+	//oxtoacart/bpool 底层基于channel实现的 https://github.com/oxtoacart/bpool
 
-	err = req.Body.Close()
-	if err != nil {
-		return
-	}
+	bufpool = bpool.NewBufferPool(48)
+
+	fmt.Println(bufpool.NumPooled())
+
+	buf := bufpool.Get()
+
+	fmt.Println(bufpool.NumPooled())
+
+	bufpool.Put(buf)
+
+	fmt.Println(bufpool.NumPooled())
+}
+
+func someFunction() error {
+
+	// Get a buffer from the pool
+	buf := bufpool.Get()
+	//...
+	//...
+	//...
+	// Return the buffer to the pool
+	bufpool.Put(buf)
+
+	return nil
 }
