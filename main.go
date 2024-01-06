@@ -7,7 +7,7 @@ var s string
 
 func f() {
 	s = "hello world"
-	ch <- struct{}{}
+	close(ch)
 }
 
 func main() {
