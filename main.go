@@ -1,19 +1,17 @@
 package main
 
-import "fmt"
+var ch = make(chan struct {
+}, 10)
 
-var (
-	a = c + b
-	b = f()
-	c = f()
-	d = 3
-)
+var s string
 
-func main() {
-	fmt.Println(a, b, c, d)
+func f() {
+	s = "hello world"
+	ch <- struct{}{}
 }
 
-func f() int {
-	d++
-	return d
+func main() {
+	go f()
+	<-ch
+	print(s)
 }
