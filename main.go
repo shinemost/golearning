@@ -2,14 +2,18 @@ package main
 
 import "fmt"
 
-func main() {
-	var ch = make(chan int, 10)
+var (
+	a = c + b
+	b = f()
+	c = f()
+	d = 3
+)
 
-	for i := 0; i < 10; i++ {
-		select {
-		case ch <- i:
-		case v := <-ch:
-			fmt.Println(v)
-		}
-	}
+func main() {
+	fmt.Println(a, b, c, d)
+}
+
+func f() int {
+	d++
+	return d
 }
