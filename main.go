@@ -3,39 +3,37 @@ package main
 import (
 	"context"
 	"fmt"
-	"sync"
+	"log"
+	"runtime"
 	"time"
 
-	"github.com/marusama/semaphore/v2"
+	"golang.org/x/sync/semaphore"
+)
+
+var (
+	maxWorkers = runtime.GOMAXPROCS(0)
+	sema       = semaphore.NewWeighted(int64(maxWorkers))
+	task       = make([]int, maxWorkers*4)
 )
 
 func main() {
-	sem := semaphore.New(3)
-	var wg sync.WaitGroup
-	wg.Add(10)
-	for i := 0; i < 10; i++ {
 
-		go func(id int) {
-			defer wg.Done()
+	ctx := context.Background()
+	for i := range task {
+		if err := sema.Acquire(ctx, 1); err != nil {
+			break
+		}
 
-			err := sem.Acquire(context.Background(), 1)
-			if err != nil {
-				return
-			} // Acquire semaphore
-
-			//count := sem.GetCount()
-			//println(count)
-			sem.SetLimit(4)
-			println(sem.GetCount())
-			defer sem.Release(1) // Release semaphore
-
-			// Simulate some work
-			fmt.Printf("Goroutine %d: Start\n", id)
-			// Do some work...
-			time.Sleep(3 * time.Second)
-			fmt.Printf("Goroutine %d: End\n", id)
+		go func(i int) {
+			defer sema.Release(1)
+			time.Sleep(100 * time.Millisecond)
+			task[i] = i + 1
 		}(i)
 	}
 
-	wg.Wait()
+	err := sema.Acquire(ctx, int64(maxWorkers))
+	if err != nil {
+		log.Printf("获取所有的worker失败：%v", err)
+	}
+	fmt.Println(task)
 }
