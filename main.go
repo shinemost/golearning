@@ -1,17 +1,17 @@
 package main
 
 var ch = make(chan struct {
-}, 10)
+})
 
 var s string
 
 func f() {
 	s = "hello world"
-	close(ch)
+	<-ch
 }
 
 func main() {
 	go f()
-	<-ch
+	ch <- struct{}{}
 	print(s)
 }
