@@ -1,37 +1,39 @@
 package main
 
 import (
-	"context"
+	"errors"
 	"fmt"
-	"sync"
 	"time"
 
-	"golang.org/x/sync/semaphore"
+	"golang.org/x/sync/errgroup"
 )
 
 func main() {
 
-	var wg sync.WaitGroup
-	sem := semaphore.NewWeighted(3)
+	var g errgroup.Group
 
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
+	g.Go(func() error {
+		time.Sleep(5 * time.Second)
+		fmt.Println("exec #1")
+		return nil
+	})
 
-			err := sem.Acquire(context.Background(), 1)
-			if err != nil {
-				return
-			}
-			defer sem.Release(1)
+	g.Go(func() error {
+		time.Sleep(10 * time.Second)
+		fmt.Println("exec #2")
+		return errors.New("failed to exec #2")
+	})
 
-			// Simulate some work
-			fmt.Printf("Goroutine %d: Start\n", id)
-			// Do some work...
-			time.Sleep(3 * time.Second)
-			fmt.Printf("Goroutine %d: End\n", id)
-		}(i)
+	g.Go(func() error {
+		time.Sleep(15 * time.Second)
+		fmt.Println("exec #3")
+		return nil
+	})
+
+	if err := g.Wait(); err == nil {
+		fmt.Println("Successfully exec all")
+	} else {
+		fmt.Println("failed:", err)
+
 	}
-
-	wg.Wait()
 }
