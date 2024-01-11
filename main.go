@@ -1,42 +1,28 @@
 package main
 
 import (
-	"errors"
+	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
-	"golang.org/x/sync/errgroup"
+	"github.com/go-pkgz/syncs"
 )
 
 func main() {
+	//默认是控制子任务的并发数量
+	swg := syncs.NewSizedGroup(10)
+	// 另一种处理方式，控制同时处理任务的协程数量
+	//swg := syncs.NewSizedGroup(10, syncs.Preemptive)
+	var c uint32
 
-	var g errgroup.Group
-	var result = make([]error, 3)
-
-	g.Go(func() error {
-		time.Sleep(5 * time.Second)
-		fmt.Println("exec #1")
-		result[0] = nil
-		return nil
-	})
-
-	g.Go(func() error {
-		time.Sleep(10 * time.Second)
-		fmt.Println("exec #2")
-		result[1] = errors.New("failed to exec #2")
-		return result[1]
-	})
-
-	g.Go(func() error {
-		time.Sleep(15 * time.Second)
-		fmt.Println("exec #3")
-		result[2] = nil
-		return nil
-	})
-
-	if err := g.Wait(); err == nil {
-		fmt.Printf("Successfully exec all.result: %v\n", result)
-	} else {
-		fmt.Printf("failed: %v\n", result)
+	for i := 0; i < 1000; i++ {
+		swg.Go(func(ctx context.Context) {
+			time.Sleep(5 * time.Millisecond)
+			atomic.AddUint32(&c, 1)
+		})
 	}
+	swg.Wait()
+	fmt.Println(c)
+
 }
