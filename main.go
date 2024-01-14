@@ -1,25 +1,41 @@
 package main
 
 import (
-	"context"
-	"log"
-	"time"
+	"fmt"
+	"net/http"
 
-	"github.com/mdlayher/schedgroup"
+	"github.com/pieterclaerhout/go-waitgroup"
 )
 
 func main() {
-	sg := schedgroup.New(context.Background())
 
-	for i := 0; i < 3; i++ {
-		n := i + 1
-		sg.Delay(time.Duration(n)*time.Second, func() {
-			log.Println(n)
+	urls := []string{
+		"https://www.easyjet.com/",
+		"https://www.skyscanner.de/",
+		"https://www.ryanair.com",
+		"https://wizzair.com/",
+		"https://www.swiss.com/",
+	}
+
+	wg := waitgroup.NewWaitGroup(3)
+
+	for _, url := range urls {
+
+		urlToCheck := url
+		wg.Add(func() {
+			fmt.Printf("%s: checking\n", urlToCheck)
+			res, err := http.Get(urlToCheck)
+			if err != nil {
+				fmt.Println("Error: %v")
+			} else {
+				defer res.Body.Close()
+				fmt.Printf("%s: result: %v\n", urlToCheck, err)
+			}
 		})
+
 	}
 
-	if err := sg.Wait(); err != nil {
-		log.Fatalf("failed to wait: %v", err)
-	}
+	wg.Wait()
+	fmt.Println("Finished")
 
 }
