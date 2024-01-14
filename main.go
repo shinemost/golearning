@@ -2,26 +2,24 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"time"
 
-	"github.com/aaronjan/hunch"
+	"github.com/mdlayher/schedgroup"
 )
 
 func main() {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	sg := schedgroup.New(context.Background())
 
-	res, err := hunch.Waterfall(ctx, func(ctx context.Context, i interface{}) (interface{}, error) {
-		n := 1
-		return n * 2, nil
-		//return nil, errors.New("failed")
-	}, func(ctx context.Context, i interface{}) (interface{}, error) {
-		fmt.Println("perivous fun result is : ", i)
-		//return nil, errors.New("failed")
-		return 4, nil
-	})
+	for i := 0; i < 3; i++ {
+		n := i + 1
+		sg.Delay(time.Duration(n)*time.Second, func() {
+			log.Println(n)
+		})
+	}
 
-	fmt.Println(res)
-	fmt.Println(err)
+	if err := sg.Wait(); err != nil {
+		log.Fatalf("failed to wait: %v", err)
+	}
+
 }
