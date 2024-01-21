@@ -1,17 +1,19 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"time"
 
-	"github.com/juju/ratelimit"
+	"go.uber.org/ratelimit"
 )
 
 func main() {
-	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
-	var bucket = ratelimit.NewBucket(time.Second, 3)
+	rl := ratelimit.New(100) // per second
+
+	prev := time.Now()
 	for i := 0; i < 10; i++ {
-		bucket.Wait(1)
-		log.Printf("got #%d", i)
+		now := rl.Take()
+		fmt.Println(i, now.Sub(prev))
+		prev = now
 	}
 }
