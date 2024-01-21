@@ -8,12 +8,11 @@ import (
 )
 
 func main() {
-	rl := ratelimit.New(1, ratelimit.WithSlack(100)) // per second, no slack.
+	rl := ratelimit.New(1, ratelimit.WithSlack(3))
 
-	for i := 0; i < 200; i++ {
+	for i := 0; i < 10; i++ {
 		t := rl.Take()
-		log.Println(t)
-		log.Printf("got #%d", i)
+		log.Printf("got #%d,get time:%s", i, t.Format(time.RFC3339))
 		if i == 3 {
 			time.Sleep(3 * time.Second)
 		}
