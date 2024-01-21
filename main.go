@@ -1,20 +1,26 @@
 package main
 
 import (
-	"log"
-	"time"
+	"context"
+	"fmt"
 
-	"go.uber.org/ratelimit"
+	"github.com/go-redis/redis_rate/v10"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
-	rl := ratelimit.New(1, ratelimit.WithSlack(3))
+	ctx := context.Background()
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "admin",
+	})
+	_ = rdb.FlushDB(ctx).Err()
 
-	for i := 0; i < 10; i++ {
-		t := rl.Take()
-		log.Printf("got #%d,get time:%s", i, t.Format(time.RFC3339))
-		if i == 3 {
-			time.Sleep(3 * time.Second)
-		}
+	limiter := redis_rate.NewLimiter(rdb)
+	res, err := limiter.Allow(ctx, "project:123", redis_rate.PerSecond(10))
+	if err != nil {
+		panic(err)
 	}
+	fmt.Println("allowed", res.Allowed, "remaining", res.Remaining)
+	// Output: allowed 1 remaining 9
 }
