@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"math/rand"
@@ -27,7 +28,7 @@ func main() {
 	}
 	defer cli.Close()
 
-	useLock(cli)
+	useMutex(cli)
 
 }
 
@@ -44,5 +45,25 @@ func useLock(cli *clientV3.Client) {
 
 	time.Sleep(time.Duration(rand.Intn(30)) * time.Second)
 	locker.Unlock()
+	log.Println("released lock")
+}
+
+func useMutex(cli *clientV3.Client) {
+	sl, err := concurrency.NewSession(cli)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer sl.Close()
+	ml := concurrency.NewMutex(sl, *localName)
+	log.Printf("before acquiring lock.key:%s", ml.Key())
+	if err := ml.Lock(context.TODO()); err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("acquired lock.key:%s", ml.Key())
+
+	time.Sleep(time.Duration(rand.Intn(30)) * time.Second)
+	if err := ml.Unlock(context.TODO()); err != nil {
+		log.Fatal(err)
+	}
 	log.Println("released lock")
 }
