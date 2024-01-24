@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"math/rand"
+	"os"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 var (
 	addr      = flag.String("addr", "http://localhost:2379", "etcd address")
 	localName = flag.String("name", "my-test-lock", "election name")
+	crash     = flag.Bool("crash", false, "use --crash to set true to crash")
 )
 
 func main() {
@@ -49,7 +51,7 @@ func useLock(cli *clientV3.Client) {
 }
 
 func useMutex(cli *clientV3.Client) {
-	sl, err := concurrency.NewSession(cli)
+	sl, err := concurrency.NewSession(cli, concurrency.WithTTL(30))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -62,6 +64,11 @@ func useMutex(cli *clientV3.Client) {
 	log.Printf("acquired lock.key:%s", ml.Key())
 
 	time.Sleep(time.Duration(rand.Intn(30)) * time.Second)
+	if *crash {
+		log.Println("crashing")
+		os.Exit(1)
+	}
+
 	if err := ml.Unlock(context.TODO()); err != nil {
 		log.Fatal(err)
 	}
