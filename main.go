@@ -1,13 +1,16 @@
 package main
 
 import (
-	"context"
+	"bufio"
 	"flag"
+	"fmt"
 	"log"
 	"math/rand"
 	"os"
 	"strings"
 	"time"
+
+	recipe "go.etcd.io/etcd/client/v3/experimental/recipes"
 
 	clientV3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
@@ -16,11 +19,12 @@ import (
 var (
 	addr      = flag.String("addr", "http://localhost:2379", "etcd address")
 	localName = flag.String("name", "my-test-lock", "election name")
-	crash     = flag.Bool("crash", false, "use --crash to set true to crash")
+	//action    = flag.String("rw", "w", "r means acquiring road lock,w means acquiring write lock")
 )
 
 func main() {
 	flag.Parse()
+	rand.NewSource(time.Now().UnixNano())
 
 	endpoints := strings.Split(*addr, ",")
 	cli, err := clientV3.New(clientV3.Config{Endpoints: endpoints})
@@ -30,47 +34,60 @@ func main() {
 	}
 	defer cli.Close()
 
-	useMutex(cli)
-
-}
-
-func useLock(cli *clientV3.Client) {
 	sl, err := concurrency.NewSession(cli)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer sl.Close()
-	locker := concurrency.NewLocker(sl, *localName)
-	log.Println("acquiring lock")
-	locker.Lock()
-	log.Println("acquired lock")
 
-	time.Sleep(time.Duration(rand.Intn(30)) * time.Second)
-	locker.Unlock()
-	log.Println("released lock")
+	ml := recipe.NewRWMutex(sl, *localName)
+
+	consoleScanner := bufio.NewScanner(os.Stdin)
+	for consoleScanner.Scan() {
+		action := consoleScanner.Text()
+		switch action {
+		case "w":
+			testWriteLocker(ml)
+		case "r":
+			testReadLocker(ml)
+		default:
+			fmt.Println("unknown action")
+		}
+
+	}
+
 }
 
-func useMutex(cli *clientV3.Client) {
-	sl, err := concurrency.NewSession(cli, concurrency.WithTTL(30))
+func testWriteLocker(mutex *recipe.RWMutex) {
+
+	log.Println("acquiring write lock")
+	err := mutex.Lock()
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer sl.Close()
-	ml := concurrency.NewMutex(sl, *localName)
-	log.Printf("before acquiring lock.key:%s", ml.Key())
-	if err := ml.Lock(context.TODO()); err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("acquired lock.key:%s", ml.Key())
+	log.Println("acquired write lock")
 
 	time.Sleep(time.Duration(rand.Intn(30)) * time.Second)
-	if *crash {
-		log.Println("crashing")
-		os.Exit(1)
-	}
-
-	if err := ml.Unlock(context.TODO()); err != nil {
+	err = mutex.Unlock()
+	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println("released lock")
+	log.Println("released write lock")
+}
+
+func testReadLocker(mutex *recipe.RWMutex) {
+
+	log.Println("acquiring read lock")
+	err := mutex.RLock()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("acquired read lock")
+
+	time.Sleep(time.Duration(rand.Intn(30)) * time.Second)
+	err = mutex.RUnlock()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("released read lock")
 }
