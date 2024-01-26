@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	recipe "go.etcd.io/etcd/client/v3/experimental/recipes"
@@ -31,7 +32,7 @@ func main() {
 	}
 	defer cli.Close()
 
-	q := recipe.NewQueue(cli, *localName)
+	q := recipe.NewPriorityQueue(cli, *localName)
 
 	consoleScanner := bufio.NewScanner(os.Stdin)
 	for consoleScanner.Scan() {
@@ -39,11 +40,15 @@ func main() {
 		items := strings.Split(action, " ")
 		switch items[0] {
 		case "push":
-			if len(items) != 2 {
-				fmt.Println("must set value to push")
+			if len(items) != 3 {
+				fmt.Println("must set value and priority to push")
 				continue
 			}
-			err := q.Enqueue(items[1])
+			atom, err := strconv.Atoi(items[2])
+			if err != nil {
+				fmt.Println("must set uint16 to priority")
+			}
+			err = q.Enqueue(items[1], uint16(atom))
 			if err != nil {
 				log.Fatal(err)
 			}
