@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 
 	recipe "go.etcd.io/etcd/client/v3/experimental/recipes"
@@ -15,8 +14,8 @@ import (
 )
 
 var (
-	addr      = flag.String("addr", "http://localhost:2379", "etcd address")
-	localName = flag.String("name", "my-test-queue", "queue name")
+	addr    = flag.String("addr", "http://localhost:2379", "etcd address")
+	barrier = flag.String("name", "my-test-barrier", "barrier name")
 	//action    = flag.String("rw", "w", "r means acquiring road lock,w means acquiring write lock")
 )
 
@@ -32,32 +31,31 @@ func main() {
 	}
 	defer cli.Close()
 
-	q := recipe.NewPriorityQueue(cli, *localName)
+	b := recipe.NewBarrier(cli, *barrier)
 
 	consoleScanner := bufio.NewScanner(os.Stdin)
 	for consoleScanner.Scan() {
 		action := consoleScanner.Text()
 		items := strings.Split(action, " ")
 		switch items[0] {
-		case "push":
-			if len(items) != 3 {
-				fmt.Println("must set value and priority to push")
-				continue
-			}
-			atom, err := strconv.Atoi(items[2])
-			if err != nil {
-				fmt.Println("must set uint16 to priority")
-			}
-			err = q.Enqueue(items[1], uint16(atom))
+		case "hold":
+			err := b.Hold()
 			if err != nil {
 				log.Fatal(err)
 			}
-		case "pop":
-			v, err := q.Dequeue()
+			fmt.Println("hold")
+		case "release":
+			err := b.Release()
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Println(v)
+			fmt.Println("released")
+		case "wait":
+			err := b.Wait()
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println("after wait")
 		case "quit", "exit":
 			return
 		default:
