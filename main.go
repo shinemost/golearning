@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"go.etcd.io/etcd/client/v3/concurrency"
+
 	recipe "go.etcd.io/etcd/client/v3/experimental/recipes"
 
 	clientV3 "go.etcd.io/etcd/client/v3"
@@ -31,31 +33,30 @@ func main() {
 	}
 	defer cli.Close()
 
-	b := recipe.NewBarrier(cli, *barrier)
+	sl, err := concurrency.NewSession(cli)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	b := recipe.NewDoubleBarrier(sl, *barrier, 2)
 
 	consoleScanner := bufio.NewScanner(os.Stdin)
 	for consoleScanner.Scan() {
 		action := consoleScanner.Text()
 		items := strings.Split(action, " ")
 		switch items[0] {
-		case "hold":
-			err := b.Hold()
+		case "enter":
+			err := b.Enter()
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Println("hold")
-		case "release":
-			err := b.Release()
+			fmt.Println("after enter")
+		case "leave":
+			err := b.Leave()
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Println("released")
-		case "wait":
-			err := b.Wait()
-			if err != nil {
-				log.Fatal(err)
-			}
-			fmt.Println("after wait")
+			fmt.Println("after leave")
 		case "quit", "exit":
 			return
 		default:
