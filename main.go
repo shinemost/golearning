@@ -1,23 +1,22 @@
 package main
 
 import (
-	"bufio"
+	"context"
 	"flag"
 	"fmt"
 	"log"
-	"os"
+	"math/rand"
 	"strings"
+	"sync"
 
 	"go.etcd.io/etcd/client/v3/concurrency"
-
-	recipe "go.etcd.io/etcd/client/v3/experimental/recipes"
 
 	clientV3 "go.etcd.io/etcd/client/v3"
 )
 
 var (
-	addr    = flag.String("addr", "http://localhost:2379", "etcd address")
-	barrier = flag.String("name", "my-test-barrier", "barrier name")
+	addr = flag.String("addr", "http://localhost:2379", "etcd address")
+	//barrier = flag.String("name", "my-test-barrier", "barrier name")
 	//action    = flag.String("rw", "w", "r means acquiring road lock,w means acquiring write lock")
 )
 
@@ -32,35 +31,63 @@ func main() {
 		log.Fatal(err)
 	}
 	defer cli.Close()
+	totalAccount := 5
+	for i := 0; i < totalAccount; i++ {
+		k := fmt.Sprintf("accts/%d", i)
+		if _, err = cli.Put(context.TODO(), k, "100"); err != nil {
+			log.Fatal(err)
+		}
+	}
 
-	sl, err := concurrency.NewSession(cli)
+	exchange := func(stm concurrency.STM) error {
+		from, to := rand.Intn(totalAccount), rand.Intn(totalAccount)
+		if from == to {
+			return nil
+		}
+		fromK, toK := fmt.Sprintf("accts/%d", from), fmt.Sprintf("accts/%d", to)
+		fromV, toV := stm.Get(fromK), stm.Get(toK)
+		fromInt, toInt := 0, 0
+		//将账户金额存入fromInt,toInt
+		fmt.Sscanf(fromV, "%d", &fromInt)
+		fmt.Sscanf(toV, "%d", &toInt)
+
+		fer := fromInt / 2
+		fromInt, toInt = fromInt-fer, toInt+fer
+
+		stm.Put(fromK, fmt.Sprintf("%d", fromInt))
+		stm.Put(toK, fmt.Sprintf("%d", toInt))
+		return nil
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(10)
+
+	for i := 0; i < 10; i++ {
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 100; i++ {
+				if _, seer := concurrency.NewSTM(cli, exchange); err != nil {
+					log.Fatal(seer)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	sum := 0
+	//查出所有以accts/为前缀的key，可能是多个
+	accts, err := cli.Get(context.TODO(), "accts/", clientV3.WithPrefix())
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	b := recipe.NewDoubleBarrier(sl, *barrier, 2)
-
-	consoleScanner := bufio.NewScanner(os.Stdin)
-	for consoleScanner.Scan() {
-		action := consoleScanner.Text()
-		items := strings.Split(action, " ")
-		switch items[0] {
-		case "enter":
-			err := b.Enter()
-			if err != nil {
-				log.Fatal(err)
-			}
-			fmt.Println("after enter")
-		case "leave":
-			err := b.Leave()
-			if err != nil {
-				log.Fatal(err)
-			}
-			fmt.Println("after leave")
-		case "quit", "exit":
-			return
-		default:
-			fmt.Println("unknown action")
-		}
+	for _, kv := range accts.Kvs {
+		v := 0
+		fmt.Sscanf(string(kv.Value), "%d", &v)
+		sum += v
+		log.Printf("account %s:%d", kv.Key, v)
 	}
+
+	log.Println("account sum is", sum)
+
 }
