@@ -5,89 +5,70 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
-	"strings"
-	"sync"
-
-	"go.etcd.io/etcd/client/v3/concurrency"
+	"net/http"
+	"time"
 
 	clientV3 "go.etcd.io/etcd/client/v3"
+
+	"go.etcd.io/etcd/client/v3/naming/endpoints"
+
+	"github.com/gin-gonic/gin"
 )
 
-var (
-	addr = flag.String("addr", "http://localhost:2379", "etcd address")
-	//barrier = flag.String("name", "my-test-barrier", "barrier name")
-	//action    = flag.String("rw", "w", "r means acquiring road lock,w means acquiring write lock")
+const (
+	MyService = "my-service"
+	MyEtcdURL = "http://localhost:2379"
 )
 
 func main() {
+	// 接收命令行指定的 grpc 服务端口
+	var port int
+	flag.IntVar(&port, "port", 8080, "port")
 	flag.Parse()
-	//rand.NewSource(time.Now().UnixNano())
+	addr := fmt.Sprintf("http://localhost:%d", port)
 
-	endpoints := strings.Split(*addr, ",")
-	cli, err := clientV3.New(clientV3.Config{Endpoints: endpoints})
+	router := gin.Default()
 
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer cli.Close()
-	totalAccount := 5
-	for i := 0; i < totalAccount; i++ {
-		k := fmt.Sprintf("accts/%d", i)
-		if _, err = cli.Put(context.TODO(), k, "100"); err != nil {
-			log.Fatal(err)
-		}
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// 注册 grpc 服务节点到 etcd 中
+	go registerEndPointToEtcd(ctx, addr)
 
-	exchange := func(stm concurrency.STM) error {
-		from, to := rand.Intn(totalAccount), rand.Intn(totalAccount)
-		if from == to {
-			return nil
-		}
-		fromK, toK := fmt.Sprintf("accts/%d", from), fmt.Sprintf("accts/%d", to)
-		fromV, toV := stm.Get(fromK), stm.Get(toK)
-		fromInt, toInt := 0, 0
-		//将账户金额存入fromInt,toInt
-		fmt.Sscanf(fromV, "%d", &fromInt)
-		fmt.Sscanf(toV, "%d", &toInt)
+	router.GET("/hello", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Hello, world!",
+		})
+	})
 
-		fer := fromInt / 2
-		fromInt, toInt = fromInt-fer, toInt+fer
+	// 注册服务后启动HTTP服务器
 
-		stm.Put(fromK, fmt.Sprintf("%d", fromInt))
-		stm.Put(toK, fmt.Sprintf("%d", toInt))
-		return nil
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(10)
-
-	for i := 0; i < 10; i++ {
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 100; i++ {
-				if _, seer := concurrency.NewSTM(cli, exchange); err != nil {
-					log.Fatal(seer)
-				}
-			}
-		}()
-	}
-	wg.Wait()
-
-	sum := 0
-	//查出所有以accts/为前缀的key，可能是多个
-	accts, err := cli.Get(context.TODO(), "accts/", clientV3.WithPrefix())
-	if err != nil {
+	if err := router.Run(":8080"); err != nil {
 		log.Fatal(err)
 	}
 
-	for _, kv := range accts.Kvs {
-		v := 0
-		fmt.Sscanf(string(kv.Value), "%d", &v)
-		sum += v
-		log.Printf("account %s:%d", kv.Key, v)
+}
+
+func registerEndPointToEtcd(ctx context.Context, addr string) {
+	// 创建 etcd 客户端
+	etcdClient, _ := clientV3.NewFromURL(MyEtcdURL)
+	etcdManager, _ := endpoints.NewManager(etcdClient, MyService)
+
+	// 创建一个租约，每隔 10s 需要向 etcd 汇报一次心跳，证明当前节点仍然存活
+	var ttl int64 = 10
+	lease, _ := etcdClient.Grant(ctx, ttl)
+
+	// 添加注册节点到 etcd 中，并且携带上租约 id
+	_ = etcdManager.AddEndpoint(ctx, fmt.Sprintf("%s/%s", MyService, addr), endpoints.Endpoint{Addr: addr}, clientV3.WithLease(lease.ID))
+
+	// 每隔 5 s进行一次延续租约的动作
+	for {
+		select {
+		case <-time.After(5 * time.Second):
+			// 续约操作
+			resp, _ := etcdClient.KeepAliveOnce(ctx, lease.ID)
+			fmt.Printf("keep alive resp: %+v", resp)
+		case <-ctx.Done():
+			return
+		}
 	}
-
-	log.Println("account sum is", sum)
-
 }
