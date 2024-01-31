@@ -27,14 +27,14 @@ func main() {
 	flag.Parse()
 	addr := fmt.Sprintf("http://localhost:%d", port)
 
-	router := gin.Default()
+	mux := gin.Default()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	// 注册 grpc 服务节点到 etcd 中
 	go registerEndPointToEtcd(ctx, addr)
 
-	router.GET("/hello", func(c *gin.Context) {
+	mux.GET("/hello", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "Hello, world!",
 		})
@@ -42,7 +42,7 @@ func main() {
 
 	// 注册服务后启动HTTP服务器
 
-	if err := router.Run(":8080"); err != nil {
+	if err := mux.Run(":8080"); err != nil {
 		log.Fatal(err)
 	}
 
@@ -54,7 +54,7 @@ func registerEndPointToEtcd(ctx context.Context, addr string) {
 	etcdManager, _ := endpoints.NewManager(etcdClient, MyService)
 
 	// 创建一个租约，每隔 10s 需要向 etcd 汇报一次心跳，证明当前节点仍然存活
-	var ttl int64 = 10
+	var ttl int64 = 100
 	lease, _ := etcdClient.Grant(ctx, ttl)
 
 	// 添加注册节点到 etcd 中，并且携带上租约 id
