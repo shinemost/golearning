@@ -1,18 +1,21 @@
 package main
 
-import (
-	"fmt"
-)
+import "fmt"
 
 func main() {
-	demo()
+	demo("hello")
+	demo("hello", "leo", "yinruoliang")
+	demo("hello", "s", 12, 32)
+	g := []any{"caicai", "jjbong", "ruirui", 1, 2}
+	demo("not happy", g...)
 }
 
-func demo() {
-	i, j := 0, 0
-	if true {
-		j, k := 1, 1
-		fmt.Println(j, k)
+func demo(l string, who ...any) {
+	if who == nil {
+		fmt.Println("nobody say hi")
 	}
-	fmt.Println(i, j)
+	for _, s := range who {
+		fmt.Printf("%s %v\n", l, s)
+	}
+
 }
