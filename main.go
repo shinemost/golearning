@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 )
 
@@ -32,16 +33,7 @@ func main() {
 	//k := MapKeys(map[int]int{1: 2, 2: 4})
 	//fmt.Println(k)
 
-	s := MakeSet[int]()
-	s.Add(1)
-	s.Add(2)
-	s.Add(2)
-	if s.Contains(2) {
-		fmt.Println("s contians 2")
-	} else {
-		fmt.Println("s not contains 2")
-	}
-	fmt.Println(s)
+	OrderedSliceDemo()
 
 }
 
@@ -139,7 +131,61 @@ func (receiver Set[T]) Iterate(f func(T)) {
 	}
 }
 
+func SetDemo() {
+	s := MakeSet[int]()
+	s.Add(1)
+	s.Add(2)
+	s.Add(2)
+	if s.Contains(2) {
+		fmt.Println("s contians 2")
+	} else {
+		fmt.Println("s not contains 2")
+	}
+	fmt.Println(s)
+}
+
 type ThreadSafeSet[T comparable] struct {
 	l sync.RWMutex
 	m map[T]struct{}
+}
+
+// 联合类型元素，根据操作定义 --排序
+type Ordered interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 |
+		~float32 | ~float64 | ~string
+}
+
+// 定义新类型(数组)，使用自定义泛型类型
+type orderedSlice[T Ordered] []T
+
+// 实现sort.Interface接口的三个方法
+func (s orderedSlice[T]) Len() int {
+	return len(s)
+}
+
+func (s orderedSlice[T]) Less(i, j int) bool {
+	return s[i] < s[j]
+}
+
+func (s orderedSlice[T]) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+// OrderedSlice 封装排序方法
+func OrderedSlice[T Ordered](s []T) {
+	sort.Sort(orderedSlice[T](s))
+}
+
+// OrderedSliceDemo 实现泛型实现自定义切片类型排序
+func OrderedSliceDemo() {
+	s := []int{1, 3, 2, 4, 10}
+	//OrderedSlice(s)
+	//fmt.Println(s)
+
+	sort.Slice(s, func(i, j int) bool {
+		return s[i] < s[j]
+	})
+
+	fmt.Println(s)
 }
