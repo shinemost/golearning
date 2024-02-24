@@ -72,5 +72,4 @@ func newHttpRoute() {
 	if err := http.ListenAndServe(":5678", mux); err != nil {
 		panic(err)
 	}
-
 }
